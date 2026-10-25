@@ -1,16 +1,12 @@
-# :rocket: Buy a ready to use kit [here](https://github.com/Gifford47/HCPBridgeMqtt/discussions/83)
-[Discussion & orders](https://github.com/Gifford47/HCPBridgeMqtt/discussions/83)  
-[Getting started prebuild PCBs](docs/getting_started_prebuild_pcbs.md)  
-📖 **[Full documentation](https://gifford47.github.io/HCPBridgeMqtt/)** — installation, configuration, MQTT/Home Assistant, sensors, API, troubleshooting  
+# HCPBridgeMqtt — WLED automation, MQTT & Home Assistant
 
-## Support this project
+**Version 2.0.2** · ESP32 / HCP2 · Local web UI · Deutsch / English
 
-If you like HCPBridge and want to support its development, consider sponsoring me! Your contribution helps cover development, testing and bug-fixing.
+Control a Hörmann garage door, automate WLED presets and inspect bus activity from the ESP32's web interface.
 
-[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-181717?logo=GitHub)](https://github.com/sponsors/gifford47)
+[Deutsche Anleitung](HCPBridgeESP32/README-WLED-DE.md) · [Changelog](HCPBridgeESP32/CHANGELOG.md) · [WebUI screenshots](#screenshots)
 
-# Hörmann hormann — MQTT + Home Assistant
-<img src="docs/Images/webinterface.png" width="400" alt="Web Interface">
+![Garage door overview in the current WebUI](Doc/Images/webinterface.png)
 
 **Emulates Hörmann UAP1-HCP (HCP2) using an ESP32 + RS485 converter and exposes garage door controls via MQTT and a web UI.**
 
@@ -21,7 +17,13 @@ If you like HCPBridge and want to support its development, consider sponsoring m
 - [Compatibility](#compatibility)
 - [Features](#features)
 - [Installation](#installation)
+- [Build with PlatformIO](#build-with-platformio)
 - [Web Interface](#web-interface)
+- [WLED automation](#wled-automation)
+- [Block-based flow editor](#block-based-flow-editor)
+- [Typed variables and preset input](#typed-variables-and-preset-input)
+- [Bus log and serial diagnostics](#bus-log-and-serial-diagnostics)
+- [Languages](#languages)
 - [Factory Reset & Sensor Recovery](#factory-reset--sensor-recovery)
 - [MQTT & Home Assistant](#mqtt--home-assistant)
 - [Configuration](#configuration)
@@ -38,76 +40,265 @@ If you like HCPBridge and want to support its development, consider sponsoring m
 ---
 
 ## Quick Start
-1. Flash the firmware to an ESP32 (see `docs/` for build instructions).  
-2. Connect ESP32 TX/RX to an RS485 converter and wire to the HCP bus.  
-3. Power on the motor control board and run a BUS scan (see **Installation**).  
-4. Connect to the device hotspot or your Wi-Fi and open the web interface (details below).  
-5. Configure Wi-Fi, MQTT and any sensors via the web UI — everything is stored on the ESP32 itself.
+1. Flash the firmware to an ESP32 (see [Build with PlatformIO](#build-with-platformio)).
+2. Connect ESP32 TX/RX to an RS485 converter and wire to the HCP bus.
+3. Power on the motor control board and run a BUS scan (see **Installation**).
+4. Connect to the device hotspot or your Wi-Fi and open the web interface (details below).
+5. Open the **three-bar menu at the top left** to configure Wi-Fi, MQTT, sensors and I/O.
+6. For lighting automation, configure the WLED IPv4 address, create a flow and save it. Flows execute on the bridge with the browser closed.
+
+Configuration and flow definitions are stored on the ESP32. Diagnostic logs are RAM buffers and are lost on restart.
 
 If you just want to test: connect to hotspot `HCPBRIDGE` / password `gifford47`, open the web UI and set your MQTT broker.
 
 ---
+
+## Build with PlatformIO
+
+Open [`HCPBridgeESP32`](HCPBridgeESP32) as the PlatformIO project, then select the environment that matches your board.
+
+| Environment | Board |
+|---|---|
+| `esp32` | NodeMCU-32S / generic ESP32 configuration |
+| `HCP_Giffordv1` | HCP Gifford v1 |
+| `HCP_Giffordv2` | ESP32-S3 DevKitC configuration |
+| `HCP_Giffordv3` | ESP32-based HCP Gifford v3 |
+| `m5stack-stamps3` | M5Stack StampS3 |
+| `m5stack-atom-lite` | M5Stack Atom Lite |
+
+```sh
+cd HCPBridgeESP32
+pio run -e esp32
+pio run -e esp32 -t upload
+```
+
+Replace `esp32` with your environment. Pin defaults and hardware options depend on that selection. Web pages, scripts and translation JSON files are embedded during the build; no separate filesystem upload is required.
 
 ## Compatibility
 | Supported motors (UAP1-HCP / HCP2-Bus / Modbus) |
 |---|
 | SupraMatic E/P **Serie 4** |
 | ProMatic **Serie 4** |
-| [Rollmatic v2](docs/rollmatic_v2.md) |
+| [Rollmatic v2](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/rollmatic_v2.md) |
 
 > **Not compatible** with E**3** series motors (different protocol / layout). For older HCP1 hardware see other projects: [hgdo](https://github.com/steff393/hgdo), [hoermann_door](https://github.com/stephan192/hoermann_door), [hormann-hcp](https://github.com/raintonr/hormann-hcp).
 
 ---
 
 ## Features
-- Read door status: open/closed/position, light on/off  
-- Control: open, close, stop, light toggle, set position (half/vent/custom)  
-- MQTT with Home Assistant Auto Discovery  
-- Web Interface for configuration & control  
-- OTA Updates  
-- First-use hotspot (for out-of-the-box Wi-Fi setup)  
-- Support for ESP32-S1/S2/S3 families  
+- Read door status: open/closed/position, light on/off
+- Control: open, close, stop, light toggle, set position (half/vent/custom)
+- MQTT with Home Assistant Auto Discovery
+- Web Interface for configuration & control
+- OTA Updates
+- First-use hotspot (for out-of-the-box Wi-Fi setup)
+- Board-specific ESP32 and ESP32-S3 environments listed above
 - Optional external sensors (DS18x20, BME280, DHT22, HC-SR04, HC-SR501, MQ4)
 - Optional digital inputs (wall button) and outputs (relay module) on the prebuilt PCBs
-- Efficient MQTT traffic (only publish on state change)  
+- Efficient MQTT traffic (only publish on state change)
 - Support multiple HCP Bridges for several doors
+- WLED HTTP preset calls and JSON state access
+- Drag-and-drop flow editor with triggers, conditions, delays and connected blocks
+- Typed `string`, `int` and `bool` variables, live values and optional persistence
+- Integer variable input for the WLED preset block
+- WLED `/win` XML fields mapped individually to variables, including repeated RGB fields
+- Separate settings overlays opened from a shared three-bar menu
+- German and English UI with device-persisted language selection
+- Bus and serial diagnostic viewers with live updates and JSON download
 
 ---
 
 ## Installation
 
 ### Hardware
-1. Just plug-in the provided RJ12 cable (see [Screenshots](#screenshots))  
-See also: [Getting started prebuild PCBs](docs/getting_started_prebuild_pcbs.md)  
+1. Connect the provided RJ12 cable
+See also: [Getting started prebuild PCBs](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/getting_started_prebuild_pcbs.md)
 
 ### BUS Scan / First Run
-- **Old hardware**: trigger BUS scan by flipping the last DIP switch (ON → OFF). Note: BUS power (+24V) may be removed when no devices detected — you can "jump start" using +24V from motor connectors if necessary.  
+- **Old hardware**: trigger BUS scan by flipping the last DIP switch (ON → OFF). Note: BUS power (+24V) may be removed when no devices detected — you can "jump start" using +24V from motor connectors if necessary.
 - **New hardware**: BUS scan via the LC display in menu `37`. See:
-  - [Supramatic 4 Busscan guide EN](docs/bus_scan_EN.md)
-  - [Supramatic 4 Busscan guide DE](docs/bus_scan_DE.md)
+  - [Supramatic 4 Busscan guide EN](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/bus_scan_EN.md)
+  - [Supramatic 4 Busscan guide DE](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/bus_scan_DE.md)
 
 ---
 
 ## Web Interface
-To access the web interface, first connect to the device’s automatic Wi-Fi hotspot.  
-By default, the hotspot is named **`HCPBRIDGE`** and secured with the password **`gifford47`**.  
+To access the web interface, first connect to the device’s automatic Wi-Fi hotspot.
+By default, the hotspot is named **`HCPBRIDGE`** and secured with the password **`gifford47`**.
 
-Once connected, open a web browser and go to:  
-**http://[deviceip]**  
+Once connected, open a web browser and go to:
+**http://[deviceip]**
 (you can also try **http://192.168.4.1** if you are connected directly to the hotspot).
 
 When the login screen appears, use the following default credentials:
-- **Username:** `admin`  
+- **Username:** `admin`
 - **Password:** *(leave empty)*
 
 After logging in, you will see the main control panel of the device.
 
 ### OTA Update Access
 For performing OTA (Over-The-Air) updates, authentication uses a different set of credentials:
-- **Username:** `admin`  
+- **Username:** `admin`
 - **Password:** `admin`
 
-<img src="docs/Images/webinterface.png" width="320" alt="Web Interface">
+### Navigation and settings overlays
+
+The **three-bar menu at the top left** provides access to Wi-Fi/MQTT/device settings, sensors, inputs and outputs, expert settings, WLED connection, the flow editor, variables, bus log, serial diagnostics, language and system/firmware information.
+
+Configuration panels open as separate overlays. They are no longer appended below the garage overview. Wi-Fi/MQTT, sensor, I/O and expert forms retain their **Save & Restart** buttons. WLED connection and flow changes are applied together with **Save** in the editor, without restarting the bridge.
+
+![Shared configuration menu](Doc/Images/webui-menu.png)
+
+![Wi-Fi, MQTT and device settings overlay](Doc/Images/webui-settings.png)
+
+---
+
+## WLED automation
+
+1. Open **WLED connection / WLED-Verbindung** in the menu.
+2. Enter the IPv4 address of the separate WLED controller.
+3. Enable the flow engine and close the settings overlay.
+4. Open the flow editor, configure triggers and actions, then click **Save**.
+
+![WLED connection settings](Doc/Images/webui-wled-connection.png)
+
+The bridge makes local HTTP requests to WLED. Presets must already exist on the WLED device.
+
+| Block | Request / purpose |
+|---|---|
+| WLED preset | `GET http://<WLED-IP>/win&PL=<1–250>` |
+| WLED HTTP command | Parameters such as `T=1&A=128` appended to `/win&` |
+| Read WLED status | `GET /json/state`, available to later blocks under `wled` |
+| Write WLED JSON | JSON object sent with `POST /json/state` |
+| WLED /win → variables | `GET /win`, XML fields converted into selected target variables |
+
+Use **PL** to apply a preset. **PS** in an HTTP write command saves a preset instead. The HTTP-command block accepts parameters only, without an IP address, `/win`, or a leading `&`.
+
+### Read individual WLED values
+
+In **WLED /win → variables**, add a mapping for each XML field, its zero-based index and its target variable. **Show current WLED fields** reads the saved WLED address and displays the values actually returned by that device.
+
+| XML field | Index | Example variable type |
+|---|---|---|
+| `ps` | 0 | `int` — current preset |
+| `ac` | 0 | `int` — current output brightness |
+| `cl` | 0 / 1 / 2 | `int` — primary red / green / blue |
+| `cs` | 0 / 1 / 2 | `int` — secondary red / green / blue |
+| `nl` | 0 | `bool` — nightlight active |
+| `ds` | 0 | `string` — device name |
+
+![WLED XML field discovery](Doc/Images/webui-wled-values.png)
+
+Mappings are validated before their variables are updated together. A missing field or incompatible type stops that block without partially updating its targets. Choose **Output value** to select the variable passed to the next block.
+
+`/win` exposes WLED's XML status fields, not every segment or configuration option. Use the JSON read block and a variable-write block for other available JSON values. The XML response is limited to 8192 bytes, with up to 24 mappings per block. See the official [WLED HTTP API](https://kno.wled.ge/interfaces/http-api/) and [JSON API](https://kno.wled.ge/interfaces/json-api/).
+
+---
+
+## Block-based flow editor
+
+Open **Flow editor / Ablaufeditor** from the menu. Drag blocks from the left palette onto the canvas or click a palette item to add it. Drag a block to move it and select it to edit its properties on the right.
+
+To connect blocks, click the right output and then a left input. For conditions, the upper output is **Yes**, the lower output is **No**. Click a wire to remove it; Escape cancels an unfinished connection.
+
+![Flow editor with preset backup and restore paths](Doc/Images/webui-flow-editor.png)
+
+Available blocks:
+
+- **Trigger:** door state changes, door light on/off, startup, time interval or manual trigger.
+- **Read bridge status:** door, light, configured sensors and I/O values under `bridge`.
+- **Read WLED status**, **WLED /win → variables**, **WLED preset**, **WLED HTTP command** and **Write WLED JSON**.
+- **Condition:** equality, inequality, greater-than and less-than comparisons.
+- **Wait:** schedule the next step without blocking the bus task.
+- **Read variable** and **Save variable**.
+
+For example:
+
+```text
+Door opening → /win: save current ps → activate preset 2
+Door closed  → read previousPreset  → preset block's int input
+```
+
+The second connection passes the integer value **and starts the preset block**. Connect the closed trigger to the variable-read block first, rather than directly to the preset's normal input.
+
+**Save** applies the flow to the bridge. **Manual trigger** runs only saved triggers whose event is Manual; it does not simulate a door movement. **Export** and **Import** exchange flow definitions as JSON. A flow runs on the ESP32 without an open browser.
+
+Importable examples:
+
+- [Basic door-to-preset flow](HCPBridgeESP32/examples/tor-wled.json)
+- [Save and restore a preset with typed variables](HCPBridgeESP32/examples/preset-sichern-wiederherstellen.json)
+
+Maximums: **24 blocks, 48 connections, 24 variables and 16 queued steps**. Cycles are rejected; use a timer trigger for repetition. Timer intervals start at one second, and delays are limited to one hour. Incoming branches execute independently rather than waiting for a join. Saving replaces the active graph and clears waiting steps.
+
+---
+
+## Typed variables and preset input
+
+Open **Variables / Variablen** in the menu. Define a name, type, initial value and whether the value should persist across restarts.
+
+| Type | Values |
+|---|---|
+| `string` | Text up to 256 UTF-8 bytes |
+| `int` | Signed 32-bit integer |
+| `bool` | `true` / `false`, or `1` / `0` |
+
+Names start with a letter or underscore and can contain letters, digits and underscores, up to 24 characters. Variables are global to the saved flow. **Save variable** accepts a literal or a field path such as `bridge.currentPosition`, `wled.ps`, or `vars.previousPreset`. Conditions can read `vars.<name>` directly.
+
+![Typed variable definitions and live values](Doc/Images/webui-variables.png)
+
+Variable blocks display their current runtime value on the canvas. A dash is shown until the runtime status is available.
+
+The preset block supports a fixed number or the additional **brown int input**. Connect an integer output from a variable or `/win` block to that port. The block checks the supplied number at runtime and accepts only presets **1–250**; an unset variable containing 0 cannot restore a preset.
+
+Persistent values are written together approximately every five seconds when they change. Changes since the last write can be lost on sudden power failure. Nonpersistent variables use their initial values after restart or when a new flow is applied. Existing persistent values are preserved while name and type remain unchanged. Flow exports contain definitions and initial values, not current flash-stored runtime values.
+
+---
+
+## Bus log and serial diagnostics
+
+### Bus log
+
+Open **Bus log / Busprotokoll** to inspect processed Modbus activity: time since startup, register, previous/new raw values, interpreted position and target, state and MQTT queue events.
+
+![Bus register and MQTT diagnostic view](Doc/Images/webui-bus-log.png)
+
+- **512 entries** in a RAM ring buffer; old entries are overwritten when full.
+- Position register `0x9D32`, state register `0x9D33`, light and other changed status registers are recorded.
+- Unknown state codes are kept as `unknown_state` events.
+- `mqtt_queued` means publication was queued; it is not a receipt confirmation from Home Assistant.
+- **Pause**, **Refresh** and **Download JSON** operate on the viewer. The browser retains up to 1000 loaded entries and shows the latest 250 in the table.
+- API: `GET /api/bus/log?after=<sequence>`, paged at up to 32 entries per response.
+
+To investigate missing opening updates, open the log before moving the door and download an opening trace and a closing trace. The log contains processed register callbacks; invalid UART/CRC frames are not included. Do not infer movement or position from a successful HTTP command response alone.
+
+### Serial diagnostics
+
+Enable **serial debug** under Wi-Fi/MQTT/device settings, then **Save & Restart**. Open **Serial diagnostics / Serielle Diagnose** in the menu to read the output live.
+
+![Serial diagnostic output in the browser](Doc/Images/webui-serial-debug.png)
+
+The viewer captures `DBG_PRINT`, `DBG_PRINTLN`, `DBG_PRINTF` and emitted `ESP_LOG` messages while continuing USB/Serial output. It stores **96 completed lines**, up to **160 characters per line**; longer lines are marked as truncated. Updates, pause and JSON download are available in the browser.
+
+API: `GET /api/debug/serial?after=<sequence>`. The viewer reports when serial debugging is disabled. It displays diagnostic output; it does not provide a remote serial command terminal.
+
+**Both logs are held in RAM and cleared on restart or power loss.** Download useful traces before restarting. They use the existing Web UI authentication and do not write each bus event to flash.
+
+---
+
+## Languages
+
+Choose **Language / Sprache** from the menu and select **Deutsch** or **English**. The bridge saves the choice in nonvolatile storage and reloads it after restart, including when opening the UI from another browser.
+
+![Language selection overlay](Doc/Images/webui-language.png)
+
+Translation sources are separate JSON files:
+
+- [German — de.json](HCPBridgeESP32/WebUI/webpage/i18n/de.json)
+- [English — en.json](HCPBridgeESP32/WebUI/webpage/i18n/en.json)
+
+After editing a translation, rebuild the firmware so the embedded language assets are updated. A factory reset restores the default language, German.
+
+![The flow editor in English](Doc/Images/webui-flow-editor-en.png)
 
 ---
 
@@ -126,7 +317,7 @@ If a faulty sensor causes boot problems, press the button 3 times to disable all
 If a sensor causes a crash (panic/watchdog), the firmware detects this on the next boot via `esp_reset_reason()` and automatically disables all sensors.
 
 **Full factory reset (5x press):**
-Clears all Wi-Fi, MQTT and sensor configuration. The device will restart with its default hotspot.
+Clears Wi-Fi, MQTT, sensor and I/O configuration, WLED flow definitions, stored variables and the language choice. The device restarts with its default hotspot. RAM diagnostic history is also lost on restart.
 
 ---
 
@@ -183,7 +374,7 @@ Entities of sensors or I/O channels you switch off are removed again by clearing
 ## Configuration
 Everything is configured in the Web UI and stored in the ESP32's flash — there is no config file to edit and **no separate firmware build per feature**. The compile-time values in `src/configuration.h` only provide the defaults for the very first boot.
 
-The Web UI is split into four forms, each with its own *Save & Restart* button:
+The three-bar menu opens separate settings overlays. The following four forms each retain their own *Save & Restart* button:
 
 | Form | Contains |
 |---|---|
@@ -192,7 +383,9 @@ The Web UI is split into four forms, each with its own *Save & Restart* button:
 | **I/O Configuration** | The In1/In2/Out1/Out2 channels: enable, GPIO, pull mode, inversion, local action, name |
 | **Expert Configuration** | RS485 GPIOs and the entity names used for MQTT discovery |
 
-**System information** shows firmware version, build environment, IP, Wi-Fi signal strength, free memory, reset reason and the state of every sensor and I/O channel, and links to the OTA update and factory reset pages.
+**System & firmware** opens a separate overlay and shows firmware version, build environment, IP, Wi-Fi signal strength, free memory, reset reason and the state of every sensor and I/O channel, and links to the OTA update and factory reset pages.
+
+![System and firmware overlay](Doc/Images/webui-system.png)
 
 ---
 
@@ -249,7 +442,7 @@ The prebuilt HCP PCBs have four screw terminals — **In1**, **In2**, **Out1**, 
 
 MQTT: state on `hormann/<device_id>/io`, commands on `hormann/<device_id>/command/out1` and `/out2` (`true` / `false` / `toggle`). HTTP: `GET /io?output=1&state=toggle`.
 
-➡️ **Full wiring details, electrical limits, all settings and examples: [Digital Inputs & Outputs](docs/inputs_outputs.md)**
+➡️ **Full wiring details, electrical limits, all settings and examples: [Digital Inputs & Outputs](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/inputs_outputs.md)**
 
 ---
 
@@ -264,11 +457,15 @@ Besides fully open and closed, the door can be driven to the ventilation and hal
 ---
 
 ## Troubleshooting
-- **No BUS devices found:** check wiring, test +24V, try "jump start" with motor connector +24V. For old HW, ensure DIP-based scan is toggled.  
-- **Cannot reach Web UI:** connect to hotspot `HCPBRIDGE` / try http://192.168.4.1. Check firewall or captive-portal on client device.  
-- **MQTT messages not arriving:** verify broker settings, credentials, and that device is connected to Wi-Fi. Use a local MQTT client (mosquitto_sub) to debug.  
-- **Entities missing or duplicated in Home Assistant:** discovery is only sent at boot — restart the bridge after enabling a sensor or I/O channel. Check that the **Device ID** is at most 14 characters; a longer ID truncates the discovery topics.  
-- **Connection drops / slow Web UI:** open **System information** and check the signal strength. Yellow (−68 … −80 dBm) is workable, red (below −80 dBm) is not — move the antenna or see [Wi-Fi in multi-AP networks](#wi-fi-in-multi-ap-networks).  
+- **Door reports closed at 100%:** inspect the bus log for an unknown state code. Version 2.0.2 does not decode `0x60`, observed as `0x6060` at the open end position on one installation. Opening intermediate positions may also be absent from processed bus data. This is not fixed by changing the UI language or by a factory reset; retain the raw trace for protocol diagnosis.
+- **WLED field list stays empty:** verify the saved WLED address and inspect the explicit read result/error. Version 2.0.2 separates the request result from general runtime status and uses exact API route matching.
+- **Preset restore fails:** check the variable's live value and type. Restore requires `int` 1–250 and the chain trigger → variable read → preset int input. If the opening trigger never runs, the variable may remain at its initial value.
+- **No serial output in the browser:** enable serial debug, save and restart. Existing RAM logs will be cleared by that restart.
+- **No BUS devices found:** check wiring, test +24V, try "jump start" with motor connector +24V. For old HW, ensure DIP-based scan is toggled.
+- **Cannot reach Web UI:** connect to hotspot `HCPBRIDGE` / try http://192.168.4.1. Check firewall or captive-portal on client device.
+- **MQTT messages not arriving:** verify broker settings, credentials, and that device is connected to Wi-Fi. Use a local MQTT client (mosquitto_sub) to debug.
+- **Entities missing or duplicated in Home Assistant:** discovery is only sent at boot — restart the bridge after enabling a sensor or I/O channel. Check that the **Device ID** is at most 14 characters; a longer ID truncates the discovery topics.
+- **Connection drops / slow Web UI:** open **System information** and check the signal strength. Yellow (−68 … −80 dBm) is workable, red (below −80 dBm) is not — move the antenna or see [Wi-Fi in multi-AP networks](#wi-fi-in-multi-ap-networks).
 - **OTA fails:** confirm OTA credentials (admin/admin) and sufficient flash space. Use serial logs to inspect errors.
 
 If you need help, start a discussion in the repo.
@@ -277,8 +474,8 @@ If you need help, start a discussion in the repo.
 
 ## Development & Contributing
 Contributions welcome! Please:
-1. Fork the repo  
-2. Create a feature branch (`feat/my-change`)  
+1. Fork the repo
+2. Create a feature branch (`feat/my-change`)
 3. Open a PR with a clear description and tests where possible
 
 ---
@@ -295,16 +492,38 @@ Releases up to and including v1.0.2 were distributed under the previous license 
 ---
 
 ## Screenshots
-<img src="docs/Images/antrieb-min.png" width="420" alt="Motor connection">
-<img src="docs/Images/webinterface.png" width="320" alt="Web UI">
-<img src="docs/Images/hass_ov.png" width="420" alt="Hass">
-<img src="docs/Images/ha_shuttercard.png" width="420" alt="HA shutter card">
 
-![hormann](https://user-images.githubusercontent.com/14005124/215204028-66bb0342-6bc2-48dc-ad8e-b08508bdc811.png)
+The images below were rendered from the **2.0.2 WebUI source** with sanitized example data. They demonstrate the interface rather than a live door test. All screenshots are stored under [`Doc/Images`](Doc/Images); no screenshot capture commands a physical device.
+
+| View | Screenshot |
+|---|---|
+| Door overview | [webinterface.png](Doc/Images/webinterface.png) |
+| Three-bar menu | [webui-menu.png](Doc/Images/webui-menu.png) |
+| Wi-Fi / MQTT / device settings | [webui-settings.png](Doc/Images/webui-settings.png) |
+| System and firmware | [webui-system.png](Doc/Images/webui-system.png) |
+| Flow editor | [webui-flow-editor.png](Doc/Images/webui-flow-editor.png) |
+| WLED connection | [webui-wled-connection.png](Doc/Images/webui-wled-connection.png) |
+| Typed variables | [webui-variables.png](Doc/Images/webui-variables.png) |
+| WLED field values | [webui-wled-values.png](Doc/Images/webui-wled-values.png) |
+| Bus log | [webui-bus-log.png](Doc/Images/webui-bus-log.png) |
+| Serial diagnostics | [webui-serial-debug.png](Doc/Images/webui-serial-debug.png) |
+| Language selection | [webui-language.png](Doc/Images/webui-language.png) |
+| Flow editor in English | [webui-flow-editor-en.png](Doc/Images/webui-flow-editor-en.png) |
+
+Capture instructions: [Doc/screenshots/README.md](Doc/screenshots/README.md).
 
 ---
 
 ## More docs
 - [Documentation website](https://gifford47.github.io/HCPBridgeMqtt/)
-- [Rollmatic v2 notes](docs/rollmatic_v2.md)
-- [Digital Inputs & Outputs (In1/In2/Out1/Out2)](docs/inputs_outputs.md)  
+- [Rollmatic v2 notes](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/rollmatic_v2.md)
+- [Digital Inputs & Outputs (In1/In2/Out1/Out2)](https://github.com/Gifford47/HCPBridgeMqtt/blob/master/docs/inputs_outputs.md)
+
+
+## Upstream project
+
+This fork extends [Gifford47/HCPBridgeMqtt](https://github.com/Gifford47/HCPBridgeMqtt), based on the HCPBridge work credited upstream. Hardware kits, original hardware documentation and upstream sponsorship are available here:
+
+- [Ready-to-use kits and discussion](https://github.com/Gifford47/HCPBridgeMqtt/discussions/83)
+- [Upstream documentation website](https://gifford47.github.io/HCPBridgeMqtt/)
+- [Support Gifford47](https://github.com/sponsors/gifford47)
