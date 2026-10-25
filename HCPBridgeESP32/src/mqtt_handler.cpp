@@ -217,15 +217,18 @@ void MqttHandler::onPublish(uint16_t packetId) {
 // ============================================================================
 
 void MqttHandler::updateDoorStatus(bool forceUpdate) {
-    if (hoermannEngine->state->changed || forceUpdate) {
-        hoermannEngine->state->clearChanged();
+    uint32_t revision = hoermannEngine->state->revision.load();
+    if (revision != _lastDoorRevision || forceUpdate) {
+        const float currentPosition = hoermannEngine->state->currentPosition;
+        const float targetPosition = hoermannEngine->state->targetPosition;
+        const uint8_t currentState = hoermannEngine->state->state;
         JsonDocument doc;
         char payload[1024];
         const char* venting = HA_CLOSE;
         const char* half = HA_CLOSE;
 
         doc["valid"] = hoermannEngine->state->valid;
-        doc["doorposition"] = (int)(hoermannEngine->state->currentPosition * 100);
+        doc["doorposition"] = (int)(currentPosition * 100);
         doc["lamp"] = ToHA(hoermannEngine->state->lightOn);
         doc["doorstate"] = hoermannEngine->state->coverState;
         doc["detailedState"] = hoermannEngine->state->translatedState;
@@ -240,10 +243,13 @@ void MqttHandler::updateDoorStatus(bool forceUpdate) {
         doc["half"] = half;
 
         serializeJson(doc, payload);
-        _mqttClient.publish(_mqttStrings.state_topic, 1, true, payload);
+        uint16_t statePacket = _mqttClient.publish(_mqttStrings.state_topic, 1, true, payload);
 
-        sprintf(payload, "%d", (int)(hoermannEngine->state->currentPosition * 100));
-        _mqttClient.publish(_mqttStrings.pos_topic, 1, true, payload);
+        sprintf(payload, "%d", (int)(currentPosition * 100));
+        uint16_t positionPacket = _mqttClient.publish(_mqttStrings.pos_topic, 1, true, payload);
+        bool accepted = statePacket && positionPacket;
+        if (accepted) _lastDoorRevision = revision;
+        busLog.add(accepted ? BusLog::MQTT_QUEUED : BusLog::MQTT_FAILED, 0, statePacket, positionPacket, int(currentPosition*100), int(targetPosition*100), currentState);
     }
 }
 

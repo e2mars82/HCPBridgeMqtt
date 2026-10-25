@@ -5,13 +5,14 @@
     // Debug logging - controlled by WebUI preference "debug_enabled"
     // ============================================================================
     inline bool debugEnabled = false;
+    #include "serial_debug.h"
 
-    #define DBG_PRINT(...)    do { if (debugEnabled) Serial.print(__VA_ARGS__); } while(0)
-    #define DBG_PRINTLN(...)  do { if (debugEnabled) Serial.println(__VA_ARGS__); } while(0)
-    #define DBG_PRINTF(...)   do { if (debugEnabled) Serial.printf(__VA_ARGS__); } while(0)
+    #define DBG_PRINT(...)    do { if (debugEnabled) serialDebug.print(__VA_ARGS__); } while(0)
+    #define DBG_PRINTLN(...)  do { if (debugEnabled) serialDebug.println(__VA_ARGS__); } while(0)
+    #define DBG_PRINTF(...)   do { if (debugEnabled) serialDebug.printf(__VA_ARGS__); } while(0)
 
     // Please change on every new firmware builds!
-    inline const char *HA_VERSION = "1.1.0";
+    inline const char *HA_VERSION = "2.0.2";
 
     // WIFI Hostname
     inline const char HOSTNAME[]   = "HCPBRIDGE";
@@ -91,7 +92,7 @@
     //#define AlignToOpenHab
 
     // MQTT
-    inline const int READ_DELAY = 2000;           // intervall (ms) to update status on mqtt
+    inline const int READ_DELAY = 200;           // intervall (ms) to update status on mqtt
 
     #define SENSE_PERIOD 120  //read interval in Seconds of all defined sensors in seconds
 

@@ -1,0 +1,58 @@
+{
+  "host": "192.168.1.50",
+  "enabled": false,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "trigger",
+      "event": "opening",
+      "x": 80,
+      "y": 100
+    },
+    {
+      "id": 2,
+      "type": "preset",
+      "preset": 1,
+      "x": 360,
+      "y": 100
+    },
+    {
+      "id": 3,
+      "type": "trigger",
+      "event": "closed",
+      "x": 80,
+      "y": 260
+    },
+    {
+      "id": 4,
+      "type": "delay",
+      "ms": 3000,
+      "x": 360,
+      "y": 260
+    },
+    {
+      "id": 5,
+      "type": "preset",
+      "preset": 2,
+      "x": 650,
+      "y": 260
+    }
+  ],
+  "edges": [
+    {
+      "from": 1,
+      "to": 2,
+      "port": 0
+    },
+    {
+      "from": 3,
+      "to": 4,
+      "port": 0
+    },
+    {
+      "from": 4,
+      "to": 5,
+      "port": 0
+    }
+  ]
+}

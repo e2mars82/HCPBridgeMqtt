@@ -16,6 +16,10 @@ extern "C" {
 #include "io_manager.h"
 #include "mqtt_handler.h"
 #include "../WebUI/index_html.h"
+#include "../WebUI/flows_html.h"
+#include "../WebUI/i18n_assets.h"
+#include "wled_flows.h"
+WledFlows wledFlows;
 
 // ============================================================================
 // Global objects
@@ -218,7 +222,7 @@ TaskHandle_t ioTask;
 void mqttTaskFunc(void *parameter) {
     while (true) {
         mqttHandler.taskFunc();
-        vTaskDelay(READ_DELAY);
+        vTaskDelay(pdMS_TO_TICKS(READ_DELAY));
     }
 }
 
@@ -317,6 +321,7 @@ void setup() {
 
     // Load debug flag from preferences
     debugEnabled = localPrefs->getBool(preference_debug_enabled, false);
+    serialDebug.begin();
 
     // Reset button
     pinMode(RESET_PIN, INPUT);
@@ -411,19 +416,69 @@ void setup() {
     // HTTP Server Routes
     // ========================================================================
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    auto sendAsset = [](AsyncWebServerRequest *request, const uint8_t *data, size_t size, const char *type) {
+        if (!requireAuth(request)) return;
+        auto response = request->beginResponse(200, type, data, size);
+        response->addHeader("Content-Encoding", "deflate"); response->addHeader("Cache-Control", "no-store"); request->send(response);
+    };
+    server.on(AsyncURIMatcher::exact("/diagnostics.js"), HTTP_GET, [sendAsset](AsyncWebServerRequest *r) { sendAsset(r, diagnostics_js, sizeof(diagnostics_js), "application/javascript; charset=utf-8"); });
+    server.on(AsyncURIMatcher::exact("/i18n.js"), HTTP_GET, [sendAsset](AsyncWebServerRequest *r) { sendAsset(r, i18n_js, sizeof(i18n_js), "application/javascript; charset=utf-8"); });
+    server.on(AsyncURIMatcher::exact("/i18n/de.json"), HTTP_GET, [sendAsset](AsyncWebServerRequest *r) { sendAsset(r, language_de, sizeof(language_de), "application/json; charset=utf-8"); });
+    server.on(AsyncURIMatcher::exact("/i18n/en.json"), HTTP_GET, [sendAsset](AsyncWebServerRequest *r) { sendAsset(r, language_en, sizeof(language_en), "application/json; charset=utf-8"); });
+    server.on(AsyncURIMatcher::exact("/api/ui/language"), HTTP_GET, [](AsyncWebServerRequest *r) {
+        if (!requireAuth(r)) return;
+        JsonDocument d; d["language"] = localPrefs->getString("ui_lang", "de"); String payload; serializeJson(d, payload);
+        auto response = r->beginResponse(200, "application/json", payload); response->addHeader("Cache-Control", "no-store"); r->send(response);
+    });
+    auto languageHandler = new AsyncCallbackJsonWebHandler(AsyncURIMatcher::exact("/api/ui/language"), [](AsyncWebServerRequest *r, JsonVariant &body) {
+        if (!requireAuth(r)) return;
+        String language = body["language"] | "";
+        if (language != "de" && language != "en") { r->send(400, "text/plain", "Unsupported language"); return; }
+        bool ok = localPrefs->putString("ui_lang", language) == language.length(); r->send(ok ? 200 : 500, "text/plain", ok ? "OK" : "Storage error");
+    });
+    languageHandler->setMethod(HTTP_POST); languageHandler->setMaxContentLength(128); server.addHandler(languageHandler);
+
+    server.on(AsyncURIMatcher::exact("/api/debug/serial"), HTTP_GET, [](AsyncWebServerRequest *r) {
+        if (!requireAuth(r)) return;
+        uint32_t after = r->hasParam("after") ? strtoul(r->getParam("after")->value().c_str(), nullptr, 10) : 0;
+        JsonDocument d; serialDebug.json(d, after);
+        auto response = r->beginResponseStream("application/json"); response->addHeader("Cache-Control", "no-store"); serializeJson(d, *response); r->send(response);
+    });
+    server.on(AsyncURIMatcher::exact("/api/bus/log"), HTTP_GET, [](AsyncWebServerRequest *r) {
+        if (!requireAuth(r)) return;
+        uint32_t after = r->hasParam("after") ? strtoul(r->getParam("after")->value().c_str(), nullptr, 10) : 0;
+        JsonDocument d; busLog.json(d, after);
+        auto response = r->beginResponseStream("application/json"); response->addHeader("Cache-Control", "no-store"); serializeJson(d, *response); r->send(response);
+    });
+    wledFlows.begin(server, requireAuth, [](JsonDocument &root) {
+        root["doorstate"] = hoermannEngine->state->translatedState;
+        root["valid"] = hoermannEngine->state->valid && hoermannEngine->state->responseAge() >= 0 && hoermannEngine->state->responseAge() < 3;
+        root["busResponseAge"] = hoermannEngine->state->responseAge();
+        root["currentPosition"] = int(hoermannEngine->state->currentPosition * 100);
+        root["light"] = hoermannEngine->state->lightOn;
+        JsonObject sensors = root["sensors"].to<JsonObject>(); sensorManager.toStatusJson(sensors);
+        JsonObject io = root["io"].to<JsonObject>(); ioManager.toStatusJson(io);
+    });
+    hoermannEngine->state->stateListener = [](uint8_t state) { wledFlows.captureDoorState(state); };
+    server.on(AsyncURIMatcher::exact("/flows"), HTTP_GET, [](AsyncWebServerRequest *request) {
+        if (!requireAuth(request)) return;
+        auto response = request->beginResponse(200, "text/html; charset=utf-8", flows_html, sizeof(flows_html));
+        response->addHeader("Content-Encoding", "deflate"); response->addHeader("Cache-Control", "no-store"); request->send(response);
+    });
+    server.on(AsyncURIMatcher::exact("/"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         AsyncWebServerResponse *response = request->beginResponse(200, "text/html", index_html, sizeof(index_html));
         response->addHeader("Content-Encoding", "deflate");
+        response->addHeader("Cache-Control", "no-store");
         request->send(response);
     });
 
-    server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/status"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         AsyncResponseStream *response = request->beginResponseStream("application/json");
         JsonDocument root;
         root["doorstate"] = hoermannEngine->state->translatedState;
-        root["valid"] = hoermannEngine->state->valid;
+        root["valid"] = hoermannEngine->state->valid && hoermannEngine->state->responseAge() >= 0 && hoermannEngine->state->responseAge() < 3;
         root["targetPosition"] = (int)(hoermannEngine->state->targetPosition * 100);
         root["currentPosition"] = (int)(hoermannEngine->state->currentPosition * 100);
         root["light"] = hoermannEngine->state->lightOn;
@@ -448,14 +503,14 @@ void setup() {
         request->send(response);
     });
 
-    server.on("/statush", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/statush"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         AsyncResponseStream *response = request->beginResponseStream("application/json");
         response->print(hoermannEngine->state->toStatusJson());
         request->send(response);
     });
 
-    server.on("/command", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/command"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         if (request->hasParam("action")) {
             int actionid = request->getParam("action")->value().toInt();
@@ -482,7 +537,7 @@ void setup() {
         request->send(200, "text/plain", "OK");
     });
 
-    server.on("/sysinfo", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/sysinfo"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         DBG_PRINTLN("GET SYSINFO");
         AsyncResponseStream *response = request->beginResponseStream("application/json");
@@ -510,7 +565,7 @@ void setup() {
     });
 
     // Digital outputs: /io?output=1&state=on|off|toggle
-    server.on("/io", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/io"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         if (!request->hasParam("output") || !request->hasParam("state")) {
             request->send(400, "text/plain", "output and state required");
@@ -527,7 +582,7 @@ void setup() {
         request->send(200, "text/plain", "OK");
     });
 
-    server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/config"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         DBG_PRINTLN("GET CONFIG");
         AsyncResponseStream *response = request->beginResponseStream("application/json");
@@ -547,7 +602,7 @@ void setup() {
         }
     });
 
-    server.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on(AsyncURIMatcher::exact("/reset"), HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!requireAuth(request)) return;
         DBG_PRINTLN("GET reset");
         AsyncResponseStream *response = request->beginResponseStream("application/json");

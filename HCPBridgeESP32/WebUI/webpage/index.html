@@ -172,6 +172,7 @@
   </style>
 </head>
 <body>
+
 	<div class="top">
 		<h1 id="collapse">Garage Door</h1>
 		<span id="conn" class="pill"><i></i><span id="conn_txt">Connecting…</span></span>
@@ -755,7 +756,7 @@
 		var g = $("garage"), d = $("gDoor");
 		var p = Math.max(0, Math.min(100, position || 0));
 		// While moving, glide linearly between the 3 s status polls
-		d.style.transition = firstPaint ? "none" : (mode === "moving" ? "transform 3s linear" : "transform .9s ease-out");
+		d.style.transition = firstPaint ? "none" : (mode === "moving" ? "transform 1s linear" : "transform .9s ease-out");
 		d.style.transform = "translateY(" + (-p / 100 * DOOR_H) + "px)";
 		firstPaint = false;
 		g.classList.toggle("moving", mode === "moving");
@@ -977,7 +978,7 @@
 
 	getConfig();
 	updateData();
-	setInterval(updateData, 3000);
+	setInterval(updateData, 1000);
 
 	// Keep the signal strength live while the sysinfo panel is open
 	setInterval(function() {
@@ -996,5 +997,30 @@
 		renderIo(JSON.parse(e.data));
 	});
 	</script>
+<!-- SHARED_MENU_START --><style>
+#menu-toggle{position:fixed;left:12px;top:10px;z-index:1002;width:44px;height:42px;border:1px solid #9daec0;border-radius:8px;background:#fff;color:#24384d;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px}#menu-toggle span{display:block;width:21px;height:2px;background:currentColor}#menu-overlay{position:fixed;inset:0;background:#10223970;z-index:1000}#settings-menu{position:fixed;left:0;top:0;bottom:0;width:min(320px,90vw);z-index:1001;background:#fff;color:#24384d;padding:68px 18px 24px;box-shadow:4px 0 30px #0003;overflow:auto}#settings-menu h2{font-size:18px;color:#24384d}#settings-menu a{display:block;padding:13px 12px;border-radius:6px;text-decoration:none;color:#24384d}#settings-menu a:hover{background:#e9f0f7}#menu-overlay[hidden],#settings-menu[hidden]{display:none!important}body{padding-top:62px!important}.settings-card{display:none!important}.settings-card.current{display:block!important}.settings-modal{border:1px solid #bcc9d8;border-radius:12px;background:var(--bg,#f1f4f8);color:var(--text,#273248);padding:20px;width:min(780px,95vw);max-height:90vh;overflow:auto}.settings-modal::backdrop{background:#102239a0}.settings-modal .modal-top{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:15px}.settings-modal h2{margin:0;font-size:19px;color:inherit;text-transform:none;letter-spacing:0}.settings-modal button.close-modal{padding:8px 14px;border:1px solid #abb9cc;background:white;color:#273248;border-radius:6px;cursor:pointer}.settings-modal .card{margin:0}.settings-modal #wled-settings-panel label{display:block;margin:15px 0}.settings-modal input{font:inherit}.settings-modal #wled-settings-panel input:not([type=checkbox]){display:block;width:100%;padding:8px;border:1px solid #bbc9d9;border-radius:6px;margin-top:7px}.settings-modal .acc-head{display:none}#language-status{min-height:22px}
+</style>
+<button id="menu-toggle" type="button" aria-label="Konfigurationsmenü öffnen" aria-expanded="false" aria-controls="settings-menu"><span></span><span></span><span></span></button><div id="menu-overlay" hidden></div><section id="settings-menu" aria-label="Konfigurationen" hidden><h2>Konfigurationen</h2><a href="/">Torübersicht</a><a href="/#basic">WLAN, MQTT & Gerät</a><a href="/#sensor">Sensoren</a><a href="/#io">Ein- & Ausgänge</a><a href="/#expert">Experteneinstellungen</a><a href="/flows#connection">WLED-Verbindung</a><a href="/flows">Ablaufeditor</a><a href="/flows#variables" id="variables-menu-link">Variablen</a><a href="#buslog" id="bus-log-link">Busprotokoll</a><a href="#serial" id="serial-debug-link">Serielle Diagnose</a><a href="#language" id="language-menu-link">Sprache</a><a href="/#system">System & Firmware</a></section>
+<dialog id="settings-dialog" class="settings-modal" aria-labelledby="settings-title"><div class="modal-top"><h2 id="settings-title">Einstellungen</h2><button class="close-modal" id="close-settings">Schließen</button></div><div id="settings-content"></div><section id="wled-settings-panel" hidden><p>Die Verbindung wird zusammen mit dem Ablauf über „Speichern“ übernommen.</p></section></dialog>
+<dialog id="language-dialog" class="settings-modal" aria-labelledby="language-title"><div class="modal-top"><h2 id="language-title">Sprache</h2><button class="close-modal" id="close-language">Schließen</button></div><label for="language-select">Sprache auswählen</label><select id="language-select"><option value="de">Deutsch</option><option value="en">English</option></select><p id="language-status" role="status"></p></dialog>
+<script>
+(()=>{const el=id=>document.getElementById(id),toggle=el('menu-toggle'),menu=el('settings-menu'),overlay=el('menu-overlay'),modal=el('settings-dialog');let prior;
+function open(value){if(value)prior=document.activeElement;menu.hidden=overlay.hidden=!value;toggle.setAttribute('aria-expanded',String(value));if(value)menu.querySelector('a').focus();else if(prior?.isConnected)prior.focus()}
+toggle.onclick=()=>open(menu.hidden);overlay.onclick=()=>open(false);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!menu.hidden)open(false);if(e.key==='Tab'&&!menu.hidden){const items=[toggle,...menu.querySelectorAll('a')],first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
+const sections={basic:['toggle_basic_conf','basic_conf_form','WLAN, MQTT & Gerät'],sensor:['toggle_sensor_conf','sensor_conf_form','Sensoren'],io:['toggle_io_conf','io_conf_form','Ein- & Ausgänge'],expert:['toggle_expert_conf','expert_conf_form','Experteneinstellungen'],system:['toogle_sysinfo','sysinfo_panel','System & Firmware']};
+for(const [button]of Object.values(sections)){const b=el(button);if(b){const card=b.closest('.card');card.classList.add('settings-card');el('settings-content').append(card)}}
+if(location.pathname==='/flows'){for(const id of ['host','enabled']){const input=el(id);if(input)el('wled-settings-panel').prepend(input.closest('label'))}}
+function closeHash(){if(['basic','sensor','io','expert','system','connection','language'].includes(location.hash.slice(1)))history.replaceState(null,'',location.pathname)}
+el('close-settings').onclick=()=>modal.close();modal.addEventListener('close',closeHash);el('close-language').onclick=()=>el('language-dialog').close();el('language-dialog').addEventListener('close',closeHash);
+function route(){const key=location.hash.slice(1);if(key==='language'){open(false);if(!el('language-dialog').open)el('language-dialog').showModal();return}for(const [k,[button,panel,title]]of Object.entries(sections)){const b=el(button);if(!b)continue;const active=k===key;b.closest('.card').classList.toggle('current',active);if(active){el('settings-title').textContent=title;el('wled-settings-panel').hidden=true;el('settings-content').hidden=false;if(el(panel).style.display==='none')b.click();open(false);if(!modal.open)modal.showModal()}}if(key==='connection'&&location.pathname==='/flows'){el('settings-title').textContent='WLED-Verbindung';el('wled-settings-panel').hidden=false;el('settings-content').hidden=true;open(false);if(!modal.open)modal.showModal();el('host').focus()}}
+menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{open(false);if(a.pathname===location.pathname&&a.hash===location.hash)setTimeout(route,0)}));window.addEventListener('hashchange',route);route();
+})();
+</script>
+<style>#diagnostics-dialog{width:min(1200px,96vw)}#diagnostics-dialog table{border-collapse:collapse;width:100%;font-size:12px}#diagnostics-dialog th,#diagnostics-dialog td{padding:7px;border-bottom:1px solid #cbd5e0;text-align:left;white-space:nowrap}#serial-log-output{padding:15px;max-height:55vh;overflow:auto;background:#17283c;color:#e7f2ff;white-space:pre-wrap;word-break:break-word;font:12px Consolas,monospace}.diagnostic-controls{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.diagnostic-controls button{padding:8px;border:1px solid #abb9cc;background:white;border-radius:6px;color:#273248}</style>
+<dialog id="diagnostics-dialog" class="settings-modal" aria-labelledby="diagnostics-title"><div class="modal-top"><h2 id="diagnostics-title">Busprotokoll</h2><button class="close-modal" id="close-diagnostics">Schließen</button></div><p>Protokolle liegen im RAM und gehen beim Neustart verloren. Bei vollem Puffer werden die ältesten Einträge überschrieben. Download sichert die aktuell im Browser geladenen Einträge.</p><div class="diagnostic-controls"><button id="diagnostics-refresh">Aktualisieren</button><button id="diagnostics-pause">Pause</button><button id="diagnostics-download">JSON herunterladen</button></div><p id="diagnostics-status" role="status"></p><div style="overflow:auto;max-height:55vh"><table id="bus-log-table"><thead><tr><th>Sekunden seit Start</th><th>Ereignis</th><th>Register</th><th>Rohwert vorher → nachher</th><th>Position</th><th>Ziel</th><th>Zustand</th><th>Info</th></tr></thead><tbody id="bus-log-rows"></tbody></table></div><pre id="serial-log-output" data-no-i18n hidden></pre></dialog>
+<script src="/diagnostics.js" defer></script><script src="/i18n.js" defer></script>
+<!-- SHARED_MENU_END -->
+
 </body>
+
 </html>

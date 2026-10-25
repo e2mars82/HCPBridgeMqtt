@@ -1,0 +1,181 @@
+{
+  "host": "192.168.1.50",
+  "enabled": false,
+  "variables": [
+    {
+      "name": "vorherigesPreset",
+      "type": "int",
+      "initial": "1",
+      "persist": true
+    },
+    {
+      "name": "helligkeit",
+      "type": "int",
+      "initial": "0",
+      "persist": true
+    },
+    {
+      "name": "rot",
+      "type": "int",
+      "initial": "0",
+      "persist": true
+    },
+    {
+      "name": "gruen",
+      "type": "int",
+      "initial": "0",
+      "persist": true
+    },
+    {
+      "name": "blau",
+      "type": "int",
+      "initial": "0",
+      "persist": true
+    },
+    {
+      "name": "nachtlicht",
+      "type": "bool",
+      "initial": "false",
+      "persist": true
+    },
+    {
+      "name": "geraetename",
+      "type": "string",
+      "initial": "",
+      "persist": true
+    }
+  ],
+  "nodes": [
+    {
+      "id": 1,
+      "type": "trigger",
+      "event": "opening",
+      "x": 60,
+      "y": 100
+    },
+    {
+      "id": 2,
+      "type": "winvar",
+      "mappings": [
+        {
+          "field": "ps",
+          "index": 0,
+          "variable": "vorherigesPreset"
+        },
+        {
+          "field": "ac",
+          "index": 0,
+          "variable": "helligkeit"
+        },
+        {
+          "field": "cl",
+          "index": 0,
+          "variable": "rot"
+        },
+        {
+          "field": "cl",
+          "index": 1,
+          "variable": "gruen"
+        },
+        {
+          "field": "cl",
+          "index": 2,
+          "variable": "blau"
+        },
+        {
+          "field": "nl",
+          "index": 0,
+          "variable": "nachtlicht"
+        },
+        {
+          "field": "ds",
+          "index": 0,
+          "variable": "geraetename"
+        }
+      ],
+      "variable": "vorherigesPreset",
+      "x": 330,
+      "y": 100
+    },
+    {
+      "id": 3,
+      "type": "preset",
+      "source": "literal",
+      "preset": 2,
+      "x": 620,
+      "y": 100
+    },
+    {
+      "id": 4,
+      "type": "trigger",
+      "event": "closed",
+      "x": 60,
+      "y": 350
+    },
+    {
+      "id": 5,
+      "type": "condition",
+      "field": "vars.vorherigesPreset",
+      "op": "gt",
+      "value": "0",
+      "x": 330,
+      "y": 350
+    },
+    {
+      "id": 6,
+      "type": "condition",
+      "field": "vars.vorherigesPreset",
+      "op": "lt",
+      "value": "251",
+      "x": 620,
+      "y": 350
+    },
+    {
+      "id": 7,
+      "type": "getvar",
+      "variable": "vorherigesPreset",
+      "x": 910,
+      "y": 350
+    },
+    {
+      "id": 8,
+      "type": "preset",
+      "source": "input",
+      "x": 1200,
+      "y": 350
+    }
+  ],
+  "edges": [
+    {
+      "from": 1,
+      "to": 2,
+      "port": 0
+    },
+    {
+      "from": 2,
+      "to": 3,
+      "port": 0
+    },
+    {
+      "from": 4,
+      "to": 5,
+      "port": 0
+    },
+    {
+      "from": 5,
+      "to": 6,
+      "port": 0
+    },
+    {
+      "from": 6,
+      "to": 7,
+      "port": 0
+    },
+    {
+      "from": 7,
+      "to": 8,
+      "port": 0,
+      "input": "int"
+    }
+  ]
+}

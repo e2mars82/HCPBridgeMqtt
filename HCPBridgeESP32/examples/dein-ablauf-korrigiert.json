@@ -1,0 +1,181 @@
+{
+  "enabled": false,
+  "host": "192.168.179.60",
+  "nodes": [
+    {
+      "id": 1,
+      "type": "trigger",
+      "x": 107,
+      "y": 128,
+      "event": "opening",
+      "ms": 10000
+    },
+    {
+      "id": 2,
+      "type": "winvar",
+      "x": 354,
+      "y": 95,
+      "variable": "PS",
+      "mappings": [
+        {
+          "field": "ps",
+          "index": 0,
+          "variable": "PS"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "preset",
+      "x": 736,
+      "y": 454,
+      "source": "input",
+      "preset": 1
+    },
+    {
+      "id": 6,
+      "type": "getvar",
+      "x": 466,
+      "y": 468,
+      "variable": "PS"
+    },
+    {
+      "id": 7,
+      "type": "trigger",
+      "x": 118,
+      "y": 455,
+      "event": "closed",
+      "ms": 10000
+    },
+    {
+      "id": 8,
+      "type": "preset",
+      "x": 731,
+      "y": 139,
+      "source": "literal",
+      "preset": 53
+    },
+    {
+      "id": 9,
+      "type": "trigger",
+      "x": 112,
+      "y": 361,
+      "event": "closing",
+      "ms": 10000
+    },
+    {
+      "id": 10,
+      "type": "preset",
+      "x": 733,
+      "y": 353,
+      "source": "literal",
+      "preset": 51
+    },
+    {
+      "id": 11,
+      "type": "trigger",
+      "x": 114,
+      "y": 277,
+      "event": "open",
+      "ms": 10000
+    },
+    {
+      "id": 12,
+      "type": "preset",
+      "x": 731,
+      "y": 248,
+      "source": "literal",
+      "preset": 52
+    },
+    {
+      "id": 13,
+      "type": "trigger",
+      "x": 120,
+      "y": 543,
+      "event": "stopped",
+      "ms": 10000
+    },
+    {
+      "id": 14,
+      "type": "preset",
+      "x": 739,
+      "y": 559,
+      "source": "literal",
+      "preset": 2
+    },
+    {
+      "id": 15,
+      "type": "trigger",
+      "x": 20,
+      "y": 25,
+      "event": "manual",
+      "ms": 10000
+    },
+    {
+      "id": 16,
+      "type": "setvar",
+      "x": 733,
+      "y": 50,
+      "variable": "PS",
+      "from": "literal",
+      "value": "0",
+      "field": "bridge.doorstate"
+    }
+  ],
+  "edges": [
+    {
+      "from": 1,
+      "to": 2,
+      "port": 0
+    },
+    {
+      "from": 6,
+      "to": 4,
+      "port": 0,
+      "input": "int"
+    },
+    {
+      "from": 9,
+      "to": 10,
+      "port": 0
+    },
+    {
+      "from": 11,
+      "to": 12,
+      "port": 0
+    },
+    {
+      "from": 13,
+      "to": 14,
+      "port": 0
+    },
+    {
+      "from": 15,
+      "to": 2,
+      "port": 0
+    },
+    {
+      "from": 7,
+      "to": 6,
+      "port": 0
+    },
+    {
+      "from": 2,
+      "to": 16,
+      "port": 0
+    },
+    {
+      "from": 2,
+      "to": 8,
+      "port": 0
+    }
+  ],
+  "variables": [
+    {
+      "name": "PS",
+      "type": "int",
+      "initial": "0",
+      "persist": true
+    }
+  ]
+}

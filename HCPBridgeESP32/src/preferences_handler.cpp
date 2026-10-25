@@ -125,6 +125,8 @@ bool PreferenceHandler::getFirstStart() {
 }
 
 void PreferenceHandler::resetPreferences() {
+    Preferences flows;
+    if (flows.begin("wledflows", false)) { flows.clear(); flows.end(); }
     preferences->clear();
     ESP.restart();
 }

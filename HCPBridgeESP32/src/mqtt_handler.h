@@ -59,6 +59,8 @@ public:
 // ============================================================================
 
 class MqttHandler {
+    uint32_t _lastDoorRevision = UINT32_MAX;
+
 public:
     // Initialize MQTT - call after preferences and WiFi are set up
     void begin(Preferences* prefs, PreferenceHandler* prefHandler, SensorManager* sensorMgr, IoManager* ioMgr);

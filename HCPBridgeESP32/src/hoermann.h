@@ -6,6 +6,9 @@
         #include <Stream.h>
         #include "ArduinoJson.h"
         #include "ModbusRTU.h"
+#include "bus_log.h"
+#include "bus_position.h"
+#include <atomic>
         
         #include "preferences_handler.h"
         #define SLAVE_ID 2
@@ -87,25 +90,26 @@
             String debugMessage = "initial";
             unsigned long lastModbusRespone = 0;
             bool changed = false;
+            std::atomic<uint32_t> revision{0};
             bool debMessage = false;
             float gotoPosition = 0.0f;
             bool valid = false;
 
             void setTargetPosition(float targetPosition) {
                 this->targetPosition = targetPosition;
-                this->changed = true;
+                this->changed = true; ++revision;
             }
             void setGotoPosition(float setPosition) {
                 this->gotoPosition = setPosition;
-                this->changed = true;
+                this->changed = true; ++revision;
             }
             void setCurrentPosition(float currentPosition) {
                 this->currentPosition = currentPosition;
-                this->changed = true;
+                this->changed = true; ++revision;
             }
             void setLigthOn(bool lightOn) {
                 this->lightOn = lightOn;
-                this->changed = true;
+                this->changed = true; ++revision;
             }
             void recordModbusResponse() {
                 this->lastModbusRespone = millis();
@@ -127,11 +131,18 @@
                 }
                 return diff/1000;
             }
+            void (*stateListener)(uint8_t) = nullptr;
+            bool stateObserved = false;
             void setState(State state) {
+                bool different = this->state != state;
+                bool moving = state == OPENING || state == CLOSING || state == MOVE_VENTING || state == MOVE_HALF;
+                bool notify = different && (stateObserved || moving);
+                stateObserved = true;
                 this->state = state;
                 this->translatedState = translateState(state);
                 this->coverState = translateCoverState(state);
-                this->changed = true;
+                this->changed = true; ++revision;
+                if (notify && stateListener) stateListener(static_cast<uint8_t>(state));
             }
             void setValid(bool isValid) {
                 this->valid = isValid;
@@ -139,8 +150,9 @@
 
             //Function not used not clear if it make sense to use.
             String isValid() {
-                // is valid if age between 0 and 2 second
-                if ((this->responseAge() > 0 && this->responseAge() < 2)) {
+                // Fresh responses have age zero and must be accepted.
+                long age = this->responseAge();
+                if (this->valid && age >= 0 && age < 3) {
                     return "true";
                 } else {
                     return "false";
@@ -263,6 +275,13 @@
                 mb.onSet(
                     HREG(0x9D31 + 6), [this](TRegister *reg, uint16_t val) -> uint16_t { return this->onLampState(reg, val); },
                     0x01);
+                // Capture changed status registers that do not yet have a decoder.
+                mb.onSet(HREG(0x9D31), [this](TRegister *reg, uint16_t value) -> uint16_t {
+                    uint16_t address = reg->address.address;
+                    if (address != 0x9D32 && address != 0x9D33 && address != 0x9D37 && reg->value != value)
+                        busLog.add(BusLog::REGISTER, address, reg->value, value, int(state->currentPosition*100), int(state->targetPosition*100), state->state);
+                    return value;
+                }, 0x09);
             }
 
             void handleModbus() {
@@ -274,6 +293,11 @@
              */
             Modbus::ResultCode onRequest(Modbus::FunctionCode fc, const Modbus::RequestData data) {
                 this->state->recordModbusResponse();
+                static uint32_t lastRequestLog = 0;
+                if (millis() - lastRequestLog >= 1000) {
+                    lastRequestLog = millis();
+                    busLog.add(BusLog::REQUEST, data.reg.address, 0, 0, int(state->currentPosition*100), int(state->targetPosition*100), state->state, 0, uint8_t(fc), data.regCount);
+                }
 
                 // Command Requst (Internal State representation)
                 if (fc == Modbus::FC_READWRITE_REGS && data.regWrite.address == 0x9C41 && data.regWriteCount == 0x02 && data.regRead.address == 0x9CB9 && data.regReadCount == 0x08) {
@@ -346,19 +370,19 @@
              * Write on 0x9D31+1 , byte1: target, byte2: current
              */
             uint16_t onDoorPositonChanged(TRegister *reg, uint16_t val) {
-                // on First Byte changed (current)
-                if ((reg->value & 0x00FF) != (val & 0x00FF)) {
-                    this->state->setCurrentPosition((float)(val & 0x00FF)/200.0f);
+                auto sample = BusPosition::decode(val);
+                bool currentChanged = sample.currentValid && this->state->currentPosition != BusPosition::fraction(sample.current);
+                bool targetChanged = sample.targetValid && this->state->targetPosition != BusPosition::fraction(sample.target);
+                if (currentChanged) {
+                    this->state->setCurrentPosition(BusPosition::fraction(sample.current));
                     if ((this->state->gotoPosition > 0.0f && this->state->state == HoermannState::State::CLOSING && this->state->gotoPosition >= this->state->currentPosition) ||
                         (this->state->gotoPosition > 0.0f && this->state->state == HoermannState::State::OPENING && this->state->gotoPosition <= this->state->currentPosition)) {
-                        this->stopDoor();
-                        this->state->setGotoPosition(0.0f);
+                        this->stopDoor(); this->state->setGotoPosition(0.0f);
                     }
                 }
-                // on Second Byte changed (target)
-                if ((reg->value & 0xFF00) != (val & 0xFF00)) {
-                    this->state->setTargetPosition((float)((val & 0xFF00) >> 8)/200.0f);
-                }
+                if (targetChanged) this->state->setTargetPosition(BusPosition::fraction(sample.target));
+                uint8_t flags = (sample.currentValid ? 1 : 0) | (sample.targetValid ? 2 : 0) | (currentChanged ? 4 : 0) | (targetChanged ? 8 : 0);
+                busLog.add(BusLog::POSITION, reg->address.address, reg->value, val, int(state->currentPosition*100), int(state->targetPosition*100), state->state, flags);
 
                 return val;
             }
@@ -403,8 +427,10 @@
                             }
                             break;
                         default:
+                            busLog.add(BusLog::UNKNOWN_STATE, reg->address.address, reg->value, val, int(state->currentPosition*100), int(state->targetPosition*100), state->state);
                             ESP_LOGW(TAG_HCI, "unknown State %x", (val & 0xFF00) >> 8);
                     }
+                    busLog.add(BusLog::STATE, reg->address.address, reg->value, val, int(state->currentPosition*100), int(state->targetPosition*100), state->state);
                 }
                 return val;
             }
@@ -421,6 +447,7 @@
                     // 04 .. shut down after inactivy
                     // 00 .. off after turn off
                     this->state->setLigthOn((val & 0x00FF) == 0x14 || (val & 0x00FF) == 0x10);
+                    busLog.add(BusLog::LAMP, reg->address.address, reg->value, val, int(state->currentPosition*100), int(state->targetPosition*100), state->state);
                 }
                 return val;
             }
